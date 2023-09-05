@@ -18,7 +18,6 @@ public class CustomerProcessor implements ItemProcessor<CustomerInfo,Customer> {
             customer.setFirstName(customerInfo.getFirstName());
             customer.setGender(customerInfo.getGender());
             customer.setLastName(customerInfo.getLastName());
-            Thread.sleep(50000);
             return customer;
         }if(customerInfo.getCountry().equals("France")) {
             customerInfo.setEmail(customerInfo.getFirstName()+"@gmail.com");

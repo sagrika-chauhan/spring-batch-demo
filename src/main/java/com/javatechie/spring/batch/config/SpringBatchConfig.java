@@ -9,22 +9,30 @@ import org.springframework.batch.core.*;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.item.data.RepositoryItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.LineMapper;
+import org.springframework.batch.item.file.MultiResourceItemReader;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
+
+import java.io.IOException;
 
 @Slf4j
 @Configuration
@@ -43,11 +51,19 @@ public class SpringBatchConfig {
     @Autowired
     private JobExplorer jobExplorer;
 
-
     @Bean
+    @StepScope
+    public MultiResourceItemReader<CustomerInfo> multiResourceItemReader() throws IOException {
+        Resource[] resources = new PathMatchingResourcePatternResolver().getResources("*.csv");
+        MultiResourceItemReader<CustomerInfo> resourceItemReader = new MultiResourceItemReader<>();
+        resourceItemReader.setResources(resources);
+        resourceItemReader.setDelegate(reader());
+        return resourceItemReader;
+    }
+    @Bean
+    @StepScope
     public FlatFileItemReader<CustomerInfo> reader() {
         FlatFileItemReader<CustomerInfo> itemReader = new FlatFileItemReader<>();
-        itemReader.setResource(new FileSystemResource("src/main/resources/customers.csv"));
         itemReader.setName("csvReader");
         itemReader.setLinesToSkip(1);
         itemReader.setLineMapper(lineMapper());
@@ -85,9 +101,9 @@ public class SpringBatchConfig {
     }
 
     @Bean
-    public Step step1() {
+    public Step step1() throws IOException {
         return stepBuilderFactory.get("csv-step").<CustomerInfo, Customer>chunk(10)
-                .reader(reader())
+                .reader(multiResourceItemReader())
                 .processor(processor())
                 .writer(writer())
                 .taskExecutor(taskExecutor())
@@ -101,7 +117,7 @@ public class SpringBatchConfig {
     }
 
     @Bean
-    public Job runJob() {
+    public Job runJob() throws IOException {
         return jobBuilderFactory.get("importCustomers")/*.listener(new JobExecutionListener() {
                     @Override
                     public void beforeJob(JobExecution jobExecution) {
@@ -114,7 +130,7 @@ public class SpringBatchConfig {
                     @Override
                     public void afterJob(JobExecution jobExecution) {}
                 })*/
-                .start(stepToFindRunningJob()).next(step1()).build();
+                .start(step1()).build();
 
     }
 
